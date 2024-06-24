@@ -7,6 +7,7 @@ pub fn main() !void {
     defer antsy.disableRawMode();
 
     while (true) {
+        antsy.refreshScreen();
         antsy.processKeyPress();
     }
 
