@@ -21,7 +21,7 @@ pub fn main() !void {
     var stdinReader = br.reader();
 
     while (true) {
-        buf = undefined;
+        buf = .{0};
 
         _ = stdinReader.read(&buf) catch |err| {
             handlePanic("read input", err);
