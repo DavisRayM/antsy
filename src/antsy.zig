@@ -1,6 +1,7 @@
 const std = @import("std");
 const terminal = @import("terminal.zig");
 const process = std.process;
+pub const initializeEditor = terminal.initializeEditorState;
 
 pub const ExitCode = enum(u8) {
     Success,
@@ -46,7 +47,7 @@ fn ctrlKey(k: u8) u8 {
 }
 
 pub fn drawRows(writer: anytype) void {
-    for (0..24) |_| {
+    for (0..terminal.globalState.winsize.ws_row) |_| {
         writer.writeAll("~\r\n") catch |err| {
             handlePanic("drawRows", err);
         };

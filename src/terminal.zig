@@ -1,7 +1,33 @@
 const std = @import("std");
 const posix = std.posix;
 
-var originalTermios: posix.termios = undefined;
+const EditorStateError = error{
+    WinInfoRequestFailed,
+};
+
+const EditorState = struct {
+    originalTermios: posix.termios,
+    winsize: posix.winsize,
+
+    fn init() !EditorState {
+        const originalTermios = try posix.tcgetattr(posix.STDIN_FILENO);
+        var winsize: posix.winsize = undefined;
+        if (posix.system.ioctl(posix.STDIN_FILENO, posix.T.IOCGWINSZ, @intFromPtr(&winsize)) < 0) {
+            return EditorStateError.WinInfoRequestFailed;
+        }
+
+        return .{
+            .originalTermios = originalTermios,
+            .winsize = winsize,
+        };
+    }
+};
+
+pub var globalState: EditorState = undefined;
+
+pub fn initializeEditorState() !void {
+    globalState = try EditorState.init();
+}
 
 pub fn readKey() u8 {
     const stdin = std.io.getStdIn();
@@ -16,15 +42,14 @@ pub fn readKey() u8 {
 }
 
 pub fn disableRawMode() !void {
-    try posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, originalTermios);
+    try posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, globalState.originalTermios);
 }
 
 pub fn enableRawMode() !void {
     // Get current terminal attributes
     // READ MORE: https://man7.org/linux/man-pages/man3/termios.3.html
     //            man termios
-    originalTermios = try posix.tcgetattr(posix.STDIN_FILENO);
-    var raw = originalTermios;
+    var raw = globalState.originalTermios;
 
     // Disable 'ECHO'. User input will no longer be printed to stdin.
     raw.lflag.ECHO = false;
@@ -66,5 +91,4 @@ pub fn enableRawMode() !void {
     raw.cc[@intFromEnum(posix.V.TIME)] = 1;
 
     try posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, raw);
-    std.debug.print("{any}\n", .{raw.lflag.ECHO});
 }

@@ -3,6 +3,7 @@ const process = std.process;
 const antsy = @import("antsy.zig");
 
 pub fn main() !void {
+    try antsy.initializeEditor();
     antsy.enableRawMode();
     defer antsy.disableRawMode();
 
