@@ -5,23 +5,75 @@ const EditorStateError = error{
     WinInfoRequestFailed,
 };
 
-const EditorState = struct {
+pub const EditorState = struct {
     originalTermios: posix.termios,
     winsize: posix.winsize,
 
-    fn init() !EditorState {
+    pub fn init() !EditorState {
         const originalTermios = try posix.tcgetattr(posix.STDIN_FILENO);
-        var winsize: posix.winsize = undefined;
-        if (posix.system.ioctl(posix.STDIN_FILENO, posix.T.IOCGWINSZ, @intFromPtr(&winsize)) < 0) {
-            return EditorStateError.WinInfoRequestFailed;
-        }
 
         return .{
             .originalTermios = originalTermios,
-            .winsize = winsize,
+            .winsize = undefined,
         };
     }
+
+    pub fn setWinSize(self: *EditorState) !void {
+        self.winsize = try getWinSize();
+    }
 };
+
+fn getWinSize() !posix.winsize {
+    var winsize: posix.winsize = undefined;
+
+    if (posix.system.ioctl(posix.STDIN_FILENO, posix.T.IOCGWINSZ, @intFromPtr(&winsize)) < 0) {
+        const stdin = std.io.getStdIn();
+        var br = std.io.bufferedReader(stdin.reader());
+        var bw = std.io.bufferedWriter(stdin.writer());
+        var stdinWriter = bw.writer();
+        var stdinReader = br.reader();
+
+        const cursorForwardSequence: [6]u8 = .{ 27, '[', '9', '9', '9', 'C' };
+        const cursorDownSequence: [6]u8 = .{ 27, '[', '9', '9', '9', 'B' };
+        const cursorReportSequence: [4]u8 = .{ 27, '[', '6', 'n' };
+
+        try stdinWriter.writeAll(&cursorForwardSequence);
+        try stdinWriter.writeAll(&cursorDownSequence);
+
+        try bw.flush();
+
+        try stdinWriter.writeAll(&cursorReportSequence);
+        try bw.flush();
+
+        var cursorReport: [32]u8 = std.mem.zeroes([32]u8);
+        _ = try stdinReader.read(&cursorReport);
+
+        winsize = .{
+            .ws_col = 0,
+            .ws_row = 0,
+            .ws_xpixel = 0,
+            .ws_ypixel = 0,
+        };
+
+        for (2..cursorReport.len) |i| {
+            if (cursorReport[i] == ';') {
+                winsize.ws_row = try std.fmt.parseInt(u16, cursorReport[2..i], 10);
+                const start = i + 1;
+
+                for (start..cursorReport.len) |j| {
+                    if (cursorReport[j] == 'R') {
+                        winsize.ws_col = try std.fmt.parseInt(u16, cursorReport[start..j], 10);
+                        break;
+                    }
+                }
+
+                break;
+            }
+        }
+    }
+
+    return winsize;
+}
 
 pub var globalState: EditorState = undefined;
 
