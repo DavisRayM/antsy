@@ -1,12 +1,17 @@
 const std = @import("std");
 const terminal = @import("terminal.zig");
 const process = std.process;
-pub const initializeEditor = terminal.initializeEditorState;
 
 pub const ExitCode = enum(u8) {
     Success,
     Failure,
 };
+
+pub fn initializeEditor() void {
+    terminal.globalState.setWinSize() catch |err| {
+        handlePanic("setWinSize", err);
+    };
+}
 
 pub fn processKeyPress() void {
     const key: u8 = terminal.readKey();
@@ -24,6 +29,10 @@ pub fn processKeyPress() void {
 }
 
 pub fn enableRawMode() void {
+    terminal.initializeEditorState() catch |err| {
+        handlePanic("initializeEditor", err);
+    };
+
     terminal.enableRawMode() catch |err| {
         handlePanic("enableRawMode", err);
     };
@@ -47,10 +56,16 @@ fn ctrlKey(k: u8) u8 {
 }
 
 pub fn drawRows(writer: anytype) void {
-    for (0..terminal.globalState.winsize.ws_row) |_| {
-        writer.writeAll("~\r\n") catch |err| {
-            handlePanic("drawRows", err);
-        };
+    for (0..terminal.globalState.winsize.ws_row) |i| {
+        if (i == terminal.globalState.winsize.ws_row - 1) {
+            writer.writeAll("~") catch |err| {
+                handlePanic("drawRows", err);
+            };
+        } else {
+            writer.writeAll("~\r\n") catch |err| {
+                handlePanic("drawRows", err);
+            };
+        }
     }
 }
 
@@ -63,10 +78,17 @@ pub fn drawRows(writer: anytype) void {
 pub fn refreshScreen() void {
     const clearSequence: [4]u8 = .{ 27, '[', '2', 'J' };
     const cursorPositionSequence: [3]u8 = .{ 27, '[', 'H' };
+    const hidePointerSequence: [6]u8 = .{ 27, '[', '?', '2', '5', 'l' };
+    const showPointerSequence: [6]u8 = .{ 27, '[', '?', '2', '5', 'h' };
     const stdout = std.io.getStdOut();
 
     var bw = std.io.bufferedWriter(stdout.writer());
     var writer = bw.writer();
+
+    // Try to hide pointer
+    writer.writeAll(&hidePointerSequence) catch |err| {
+        handlePanic("pointer escape sequence", err);
+    };
 
     // Uses the escape sequence (27 = Escape or \x1b) 2J;
     // J tells the terminal to clear the screen and takes an argument
@@ -86,6 +108,10 @@ pub fn refreshScreen() void {
 
     writer.writeAll(&cursorPositionSequence) catch |err| {
         handlePanic("cursor reposition", err);
+    };
+
+    writer.writeAll(&showPointerSequence) catch |err| {
+        handlePanic("pointer escape sequence", err);
     };
 
     bw.flush() catch |err| {
