@@ -24,6 +24,9 @@ pub fn processKeyPress() void {
             refreshScreen();
             process.exit(@intFromEnum(ExitCode.Success));
         },
+        'k', 'l', 'h', 'j' => {
+            terminal.globalState.moveCursor(key);
+        },
         else => {},
     }
 }

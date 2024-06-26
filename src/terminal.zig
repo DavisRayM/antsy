@@ -93,6 +93,32 @@ const EditorState = struct {
     pub fn setWinSize(self: *EditorState) !void {
         self.winsize = try getWinSize();
     }
+
+    pub fn moveCursor(self: *EditorState, key: u8) void {
+        switch (key) {
+            'k' => {
+                if (self.cursorPosY > 1) {
+                    self.cursorPosY -= 1;
+                }
+            },
+            'j' => {
+                if (self.cursorPosY < self.winsize.ws_row) {
+                    self.cursorPosY += 1;
+                }
+            },
+            'h' => {
+                if (self.cursorPosX > 1) {
+                    self.cursorPosX -= 1;
+                }
+            },
+            'l' => {
+                if (self.cursorPosX < self.winsize.ws_col) {
+                    self.cursorPosX += 1;
+                }
+            },
+            else => {},
+        }
+    }
 };
 
 fn getWinSize() !posix.winsize {
