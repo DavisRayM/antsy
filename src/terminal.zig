@@ -1,14 +1,24 @@
 const std = @import("std");
 const posix = std.posix;
+const antsy = @import("antsy.zig");
 
 pub var globalState: EditorState = undefined;
 
-pub fn initializeEditorState() !void {
-    globalState = try EditorState.init();
+pub const EditorKey = enum(u8) {
+    CURSOR_LEFT = 'h',
+    CURSOR_RIGHT = 'l',
+    CURSOR_UP = 'k',
+    CURSOR_DOWN = 'j',
+};
+
+pub fn ctrlKey(k: u8) u8 {
+    // Same as using 0b00011111
+    // Performs the same bitmasking done when a user presses the CTRL key
+    return (k & 0x1f);
 }
 
-pub fn setWindowSize() !void {
-    try globalState.setWinSize();
+pub fn initializeEditorState() !void {
+    globalState = try EditorState.init();
 }
 
 pub fn readKey() u8 {
@@ -32,10 +42,10 @@ pub fn readKey() u8 {
             };
 
             switch (k3) {
-                'A' => return 'k',
-                'B' => return 'j',
-                'C' => return 'l',
-                'D' => return 'h',
+                'A' => return @intFromEnum(EditorKey.CURSOR_UP),
+                'B' => return @intFromEnum(EditorKey.CURSOR_DOWN),
+                'C' => return @intFromEnum(EditorKey.CURSOR_RIGHT),
+                'D' => return @intFromEnum(EditorKey.CURSOR_LEFT),
                 else => {
                     return key;
                 },
@@ -46,15 +56,15 @@ pub fn readKey() u8 {
     return key;
 }
 
-pub fn disableRawMode() !void {
-    try posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, globalState.originalTermios);
+fn disableRawMode(originalTermios: posix.termios) !void {
+    try posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, originalTermios);
 }
 
-pub fn enableRawMode() !void {
+fn enableRawMode(originalTermios: posix.termios) !void {
     // Get current terminal attributes
     // READ MORE: https://man7.org/linux/man-pages/man3/termios.3.html
     //            man termios
-    var raw = globalState.originalTermios;
+    var raw = originalTermios;
 
     // Disable 'ECHO'. User input will no longer be printed to stdin.
     raw.lflag.ECHO = false;
@@ -106,40 +116,48 @@ const EditorState = struct {
 
     pub fn init() !EditorState {
         const originalTermios = try posix.tcgetattr(posix.STDIN_FILENO);
+        errdefer disableRawMode(originalTermios) catch {};
+
+        try enableRawMode(originalTermios);
 
         return .{
             .originalTermios = originalTermios,
-            .winsize = undefined,
+            .winsize = try getWinSize(),
         };
     }
 
-    pub fn setWinSize(self: *EditorState) !void {
-        self.winsize = try getWinSize();
+    pub fn deinit(self: *EditorState) void {
+        disableRawMode(self.originalTermios) catch |err| {
+            antsy.handlePanic("editorState deinit", err);
+        };
+        self.cursorPosX = 1;
+        self.cursorPosY = 1;
+        self.winsize = undefined;
+        self.originalTermios = undefined;
     }
 
-    pub fn moveCursor(self: *EditorState, key: u8) void {
+    pub fn moveCursor(self: *EditorState, key: EditorKey) void {
         switch (key) {
-            'k' => {
+            EditorKey.CURSOR_UP => {
                 if (self.cursorPosY > 1) {
                     self.cursorPosY -= 1;
                 }
             },
-            'j' => {
+            EditorKey.CURSOR_DOWN => {
                 if (self.cursorPosY < self.winsize.ws_row) {
                     self.cursorPosY += 1;
                 }
             },
-            'h' => {
+            EditorKey.CURSOR_LEFT => {
                 if (self.cursorPosX > 1) {
                     self.cursorPosX -= 1;
                 }
             },
-            'l' => {
+            EditorKey.CURSOR_RIGHT => {
                 if (self.cursorPosX < self.winsize.ws_col) {
                     self.cursorPosX += 1;
                 }
             },
-            else => {},
         }
     }
 };

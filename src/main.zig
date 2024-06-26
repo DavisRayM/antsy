@@ -3,12 +3,11 @@ const process = std.process;
 const antsy = @import("antsy.zig");
 
 pub fn main() !void {
-    antsy.enableRawMode();
-    defer antsy.disableRawMode();
-    antsy.initializeEditor();
+    antsy.initEditor();
+    defer antsy.deinitEditor();
 
     while (true) {
-        antsy.refreshScreen();
+        antsy.refreshScreen(true);
         antsy.processKeyPress();
     }
 

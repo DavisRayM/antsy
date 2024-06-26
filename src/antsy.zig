@@ -7,55 +7,41 @@ pub const ExitCode = enum(u8) {
     Failure,
 };
 
-pub fn initializeEditor() void {
-    terminal.setWindowSize() catch |err| {
-        handlePanic("setWinSize", err);
+pub fn initEditor() void {
+    terminal.initializeEditorState() catch |err| {
+        handlePanic("initializeEditor", err);
     };
 }
 
+pub fn deinitEditor() void {
+    terminal.globalState.deinit();
+}
+
 pub fn processKeyPress() void {
-    const key: u8 = terminal.readKey();
+    const key = terminal.readKey();
 
     switch (key) {
-        ctrlKey('q') => {
-            terminal.disableRawMode() catch |err| {
-                handlePanic("disableRawMode", err);
-            };
-            refreshScreen();
+        terminal.ctrlKey('q') => {
+            deinitEditor();
+            refreshScreen(false);
             process.exit(@intFromEnum(ExitCode.Success));
         },
         'k', 'l', 'h', 'j' => {
-            terminal.globalState.moveCursor(key);
+            terminal.globalState.moveCursor(@enumFromInt(key));
         },
         else => {},
     }
 }
 
-pub fn enableRawMode() void {
-    terminal.initializeEditorState() catch |err| {
-        handlePanic("initializeEditor", err);
-    };
-
-    terminal.enableRawMode() catch |err| {
-        handlePanic("enableRawMode", err);
-    };
-}
-
-fn handlePanic(comptime failurePoint: []const u8, err: anyerror) noreturn {
+pub fn handlePanic(comptime failurePoint: []const u8, err: anyerror) noreturn {
     defer process.exit(@intFromEnum(ExitCode.Failure));
-    terminal.disableRawMode() catch {};
-    refreshScreen();
+    deinitEditor();
+    refreshScreen(false);
 
     const stderr = std.io.getStdErr();
     var bw = std.io.bufferedWriter(stderr.writer());
     try std.fmt.format(bw.writer(), "{s}: {s}\r\n", .{ failurePoint, @errorName(err) });
     try bw.flush();
-}
-
-fn ctrlKey(k: u8) u8 {
-    // Same as using 0b00011111
-    // Performs the same bitmasking done when a user presses the CTRL key
-    return (k & 0x1f);
 }
 
 pub fn drawRows(writer: anytype) void {
@@ -119,7 +105,7 @@ pub fn drawRows(writer: anytype) void {
 /// NOTE: For more compatability checkout implementing `ncurses` which
 ///       queries the current capabilities of the terminal and sends the
 ///       appropriate escape sequence.
-pub fn refreshScreen() void {
+pub fn refreshScreen(draw: bool) void {
     const cursorPositionSequence = [_]u8{ 27, '[', 'H' };
     const hidePointerSequence = [_]u8{ 27, '[', '?', '2', '5', 'l' };
     const showPointerSequence = [_]u8{ 27, '[', '?', '2', '5', 'h' };
@@ -138,7 +124,9 @@ pub fn refreshScreen() void {
         handlePanic("cursor reposition", err);
     };
 
-    drawRows(writer);
+    if (draw) {
+        drawRows(writer);
+    }
 
     std.fmt.format(writer, "\x1b[{d};{d}H", .{ terminal.globalState.cursorPosY, terminal.globalState.cursorPosX }) catch |err| {
         handlePanic("cursor reposition", err);
