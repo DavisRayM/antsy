@@ -20,6 +20,29 @@ pub fn readKey() u8 {
         return 0;
     };
 
+    // Check if escape was pressed. NOTE: 27 = \x1b
+    if (key == 27) {
+        const k2 = stdinReader.readByte() catch {
+            return 0;
+        };
+
+        if (k2 == '[') {
+            const k3 = stdinReader.readByte() catch {
+                return 0;
+            };
+
+            switch (k3) {
+                'A' => return 'k',
+                'B' => return 'j',
+                'C' => return 'l',
+                'D' => return 'h',
+                else => {
+                    return key;
+                },
+            }
+        }
+    }
+
     return key;
 }
 
