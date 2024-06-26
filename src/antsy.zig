@@ -137,7 +137,7 @@ pub fn refreshScreen() void {
 
     drawRows(writer);
 
-    writer.writeAll(&cursorPositionSequence) catch |err| {
+    std.fmt.format(writer, "\x1b[{d};{d}H", .{ terminal.globalState.cursorPosY, terminal.globalState.cursorPosX }) catch |err| {
         handlePanic("cursor reposition", err);
     };
 
