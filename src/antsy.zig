@@ -63,8 +63,8 @@ pub fn drawRows(writer: anytype) void {
     // 2: clear the entire line
     const clearLineSequence = [_]u8{ 27, '[', 'K' };
     const welcomeMessage: []const u8 = "Antsy Editor";
-    const terminalCols: u16 = terminal.getWindowCols();
-    const terminalRows: u16 = terminal.getWindowRows();
+    const terminalCols: u16 = terminal.globalState.winsize.ws_col;
+    const terminalRows: u16 = terminal.globalState.winsize.ws_row;
 
     for (0..terminalRows) |i| {
         if (i == terminalRows / 3) {
