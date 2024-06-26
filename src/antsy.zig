@@ -56,13 +56,25 @@ fn ctrlKey(k: u8) u8 {
 }
 
 pub fn drawRows(writer: anytype) void {
+    // unlike J (tells the terminal to clear the screen), K clears the current pointer lines
+    // and takes an argument.
+    // 0: clear the right side of the cursor(default)
+    // 1: clear the left side of the cursor.
+    // 2: clear the entire line
+    const clearLineSequence = [_]u8{ 27, '[', 'K' };
+
     for (0..terminal.globalState.winsize.ws_row) |i| {
-        if (i == terminal.globalState.winsize.ws_row - 1) {
-            writer.writeAll("~") catch |err| {
-                handlePanic("drawRows", err);
-            };
-        } else {
-            writer.writeAll("~\r\n") catch |err| {
+        writer.writeAll("~") catch |err| {
+            handlePanic("drawRows", err);
+        };
+
+        // Clear line to the right of the pointer
+        writer.writeAll(&clearLineSequence) catch |err| {
+            handlePanic("drawRows", err);
+        };
+
+        if (i < terminal.globalState.winsize.ws_row - 1) {
+            writer.writeAll("\r\n") catch |err| {
                 handlePanic("drawRows", err);
             };
         }
@@ -76,10 +88,9 @@ pub fn drawRows(writer: anytype) void {
 ///       queries the current capabilities of the terminal and sends the
 ///       appropriate escape sequence.
 pub fn refreshScreen() void {
-    const clearSequence: [4]u8 = .{ 27, '[', '2', 'J' };
-    const cursorPositionSequence: [3]u8 = .{ 27, '[', 'H' };
-    const hidePointerSequence: [6]u8 = .{ 27, '[', '?', '2', '5', 'l' };
-    const showPointerSequence: [6]u8 = .{ 27, '[', '?', '2', '5', 'h' };
+    const cursorPositionSequence = [_]u8{ 27, '[', 'H' };
+    const hidePointerSequence = [_]u8{ 27, '[', '?', '2', '5', 'l' };
+    const showPointerSequence = [_]u8{ 27, '[', '?', '2', '5', 'h' };
     const stdout = std.io.getStdOut();
 
     var bw = std.io.bufferedWriter(stdout.writer());
@@ -88,15 +99,6 @@ pub fn refreshScreen() void {
     // Try to hide pointer
     writer.writeAll(&hidePointerSequence) catch |err| {
         handlePanic("pointer escape sequence", err);
-    };
-
-    // Uses the escape sequence (27 = Escape or \x1b) 2J;
-    // J tells the terminal to clear the screen and takes an argument
-    // in this case we pass 2 which tells it to clear the entire screen.
-    // 0: clear from the cursor up to the end of the screen
-    // 1: clear the screen up to where the cursor is
-    writer.writeAll(&clearSequence) catch |err| {
-        handlePanic("refresh screen sequence", err);
     };
 
     // Position cursor at the top of the screen
