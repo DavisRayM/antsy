@@ -8,7 +8,7 @@ pub const ExitCode = enum(u8) {
 };
 
 pub fn initializeEditor() void {
-    terminal.globalState.setWinSize() catch |err| {
+    terminal.setWindowSize() catch |err| {
         handlePanic("setWinSize", err);
     };
 }
@@ -62,18 +62,47 @@ pub fn drawRows(writer: anytype) void {
     // 1: clear the left side of the cursor.
     // 2: clear the entire line
     const clearLineSequence = [_]u8{ 27, '[', 'K' };
+    const welcomeMessage: []const u8 = "Antsy Editor";
+    const terminalCols: u16 = terminal.getWindowCols();
+    const terminalRows: u16 = terminal.getWindowRows();
 
-    for (0..terminal.globalState.winsize.ws_row) |i| {
-        writer.writeAll("~") catch |err| {
-            handlePanic("drawRows", err);
-        };
+    for (0..terminalRows) |i| {
+        if (i == terminalRows / 3) {
+            var len = welcomeMessage.len;
+            if (len > terminalCols) {
+                len = terminalCols;
+            }
 
-        // Clear line to the right of the pointer
-        writer.writeAll(&clearLineSequence) catch |err| {
-            handlePanic("drawRows", err);
-        };
+            var padding = (terminalCols - len) / 2;
+            if (padding > 0) {
+                writer.writeAll("~") catch |err| {
+                    handlePanic("drawWelcomeMessage", err);
+                };
+                padding -= 1;
+            }
 
-        if (i < terminal.globalState.winsize.ws_row - 1) {
+            while (padding != 0) {
+                writer.writeAll(" ") catch |err| {
+                    handlePanic("drawWelcomeMessage", err);
+                };
+                padding -= 1;
+            }
+
+            writer.writeAll(welcomeMessage) catch |err| {
+                handlePanic("drawWelcomeMessage", err);
+            };
+        } else {
+            writer.writeAll("~") catch |err| {
+                handlePanic("drawRows", err);
+            };
+
+            // Clear line to the right of the pointer
+            writer.writeAll(&clearLineSequence) catch |err| {
+                handlePanic("drawRows", err);
+            };
+        }
+
+        if (i < terminalRows - 1) {
             writer.writeAll("\r\n") catch |err| {
                 handlePanic("drawRows", err);
             };

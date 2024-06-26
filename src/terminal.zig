@@ -1,11 +1,13 @@
 const std = @import("std");
 const posix = std.posix;
 
+var globalState: EditorState = undefined;
+
 const EditorStateError = error{
     WinInfoRequestFailed,
 };
 
-pub const EditorState = struct {
+const EditorState = struct {
     originalTermios: posix.termios,
     winsize: posix.winsize,
 
@@ -75,10 +77,20 @@ fn getWinSize() !posix.winsize {
     return winsize;
 }
 
-pub var globalState: EditorState = undefined;
-
 pub fn initializeEditorState() !void {
     globalState = try EditorState.init();
+}
+
+pub fn setWindowSize() !void {
+    try globalState.setWinSize();
+}
+
+pub fn getWindowRows() u16 {
+    return globalState.winsize.ws_row;
+}
+
+pub fn getWindowCols() u16 {
+    return globalState.winsize.ws_col;
 }
 
 pub fn readKey() u8 {
